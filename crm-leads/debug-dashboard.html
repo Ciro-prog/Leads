@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Dashboard Integration</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <h1>🐛 Debug Dashboard Integration</h1>
+    
+    <div id="debug-results">
+        <p>Ejecutando diagnósticos...</p>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Comandos de Prueba</h3>
+        <button onclick="testLogin()">🧪 Test Login Admin</button>
+        <button onclick="testDashboard()">🧪 Test Dashboard</button>
+        <button onclick="testCreateVendor()">🧪 Test Create Vendor</button>
+    </div>
+    
+    <script>
+        async function runDiagnostics() {
+            const results = [];
+            
+            // Test 1: Check localhost accessibility
+            try {
+                const response = await fetch('/api/auth/me');
+                if (response.status === 401) {
+                    results.push('✅ Backend API accessible (needs login)');
+                } else {
+                    results.push('✅ Backend API accessible');
+                }
+            } catch (error) {
+                results.push('❌ Backend API not accessible: ' + error.message);
+            }
+            
+            // Test 2: Check JS files
+            const jsFiles = ['api.js', 'auth.js', 'dashboard.js', 'app.js'];
+            for (const file of jsFiles) {
+                try {
+                    const response = await fetch(`/js/${file}`);
+                    if (response.ok) {
+                        results.push(`✅ ${file} loaded successfully`);
+                    } else {
+                        results.push(`❌ ${file} failed to load (${response.status})`);
+                    }
+                } catch (error) {
+                    results.push(`❌ ${file} error: ${error.message}`);
+                }
+            }
+            
+            // Display results
+            document.getElementById('debug-results').innerHTML = `
+                <div class="debug-section">
+                    <h3>📋 Diagnóstico del Sistema</h3>
+                    ${results.map(result => `<p>${result}</p>`).join('')}
+                </div>
+            `;
+        }
+        
+        function testLogin() {
+            // Open main app for login test
+            const newWindow = window.open('/', '_blank');
+            alert('🧪 Test: Abre el sistema principal e intenta loguearte como admin/admin123');
+        }
+        
+        function testDashboard() {
+            alert('🧪 Test: Después del login, verifica que el dashboard avanzado se cargue correctamente');
+        }
+        
+        function testCreateVendor() {
+            alert('🧪 Test: En el dashboard admin, haz clic en "Crear Vendedor" para verificar el modal');
+        }
+        
+        // Run diagnostics on page load
+        document.addEventListener('DOMContentLoaded', runDiagnostics);
+    </script>
+</body>
+</html>

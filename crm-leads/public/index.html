@@ -1,0 +1,2391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Leads Médicos</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#" id="brandLink">
+                <i class="bi bi-hospital me-2"></i>
+                CRM Leads Médicos
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto" id="navMenu">
+                    <!-- Menu items will be populated by JavaScript based on user role -->
+                </ul>
+                
+                <div class="navbar-nav">
+                    <div class="nav-item dropdown" id="userDropdown" style="display: none;">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle me-1"></i>
+                            <span id="userName">Usuario</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#" id="profileLink">
+                                <i class="bi bi-person me-2"></i>Mi Perfil
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" id="changePasswordLink">
+                                <i class="bi bi-key me-2"></i>Cambiar Contraseña
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" id="logoutBtn">
+                                <i class="bi bi-box-arrow-right me-2"></i>Cerrar Sesión
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container-fluid" style="margin-top: 76px; padding-bottom: 2rem;">
+        <!-- Content will be dynamically loaded here -->
+        <div id="mainContent">
+            <!-- Login Form (shown initially) -->
+            <div id="loginContainer" class="row justify-content-center">
+                <div class="col-md-6 col-lg-4">
+                    <div class="card shadow">
+                        <div class="card-body p-4">
+                            <div class="text-center mb-4">
+                                <i class="bi bi-hospital-fill text-primary" style="font-size: 3rem;"></i>
+                                <h3 class="card-title mt-3">CRM Leads Médicos</h3>
+                                <p class="text-muted">Inicia sesión para continuar</p>
+                            </div>
+                            
+                            <form id="loginForm">
+                                <div class="mb-3">
+                                    <label for="username" class="form-label">
+                                        <i class="bi bi-person me-1"></i>Usuario o Email
+                                    </label>
+                                    <input type="text" class="form-control" id="username" name="username" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="password" class="form-label">
+                                        <i class="bi bi-lock me-1"></i>Contraseña
+                                    </label>
+                                    <input type="password" class="form-control" id="password" name="password" required>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="bi bi-box-arrow-in-right me-1"></i>
+                                    Iniciar Sesión
+                                </button>
+                            </form>
+                            
+                            <div id="loginError" class="alert alert-danger mt-3" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Content (hidden initially) -->
+            <div id="dashboardContainer" style="display: none;">
+                <!-- Dashboard content will be loaded here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Alert Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="alertToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <strong class="me-auto" id="toastTitle">Notificación</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toastMessage"></div>
+        </div>
+    </div>
+
+    <!-- Modals Container -->
+    <div id="modalsContainer"></div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Inline JavaScript - NO CACHE ISSUES -->
+    <script>
+        console.log('🚀 INLINE CRM App loading...');
+        
+        // Global variables
+        let currentUser = null;
+        let authToken = localStorage.getItem('token');
+        
+        // DOM Elements
+        let loginContainer, dashboardContainer, userName, navMenu, userDropdown;
+        
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('📱 DOM Ready - Initializing CRM...');
+            
+            // Get DOM elements
+            loginContainer = document.getElementById('loginContainer');
+            dashboardContainer = document.getElementById('dashboardContainer');
+            userName = document.getElementById('userName');
+            navMenu = document.getElementById('navMenu');
+            userDropdown = document.getElementById('userDropdown');
+            
+            // Check for existing token
+            if (authToken) {
+                console.log('🔑 Token found in localStorage, verifying...');
+                try {
+                    const response = await fetch('/api/auth/me', {
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            console.log('✅ Token valid, logging in user:', data.data.name);
+                            currentUser = data.data;
+                            showDashboard(currentUser);
+                        } else {
+                            console.log('⚠️ Token invalid, showing login form');
+                            localStorage.removeItem('token');
+                            authToken = null;
+                            showLoginForm();
+                        }
+                    } else {
+                        console.log('⚠️ Token verification failed, showing login form');
+                        localStorage.removeItem('token');
+                        authToken = null;
+                        showLoginForm();
+                    }
+                } catch (error) {
+                    console.error('❌ Error verifying token:', error);
+                    localStorage.removeItem('token');
+                    authToken = null;
+                    showLoginForm();
+                }
+            } else {
+                console.log('🔐 No token found, showing login form');
+                showLoginForm();
+            }
+            
+            // Setup login form handler
+            setupLoginHandler();
+            
+            console.log('✅ CRM initialized successfully');
+        });
+        
+        function showLoginForm() {
+            console.log('👤 Showing login form...');
+            
+            if (loginContainer) {
+                loginContainer.style.display = 'block';
+            }
+            if (dashboardContainer) {
+                dashboardContainer.style.display = 'none';
+            }
+            if (userDropdown) {
+                userDropdown.style.display = 'none';
+            }
+            
+            console.log('✅ Login form visible');
+        }
+        
+        function showDashboard(user) {
+            console.log('📊 Showing dashboard for:', user.name);
+            
+            if (loginContainer) {
+                loginContainer.style.display = 'none';
+            }
+            if (dashboardContainer) {
+                dashboardContainer.style.display = 'block';
+            }
+            if (userDropdown) {
+                userDropdown.style.display = 'block';
+            }
+            if (userName) {
+                userName.textContent = user.name;
+            }
+            
+            // Setup navigation
+            setupNavigation(user);
+            
+            // Load dashboard content
+            loadDashboardContent(user);
+            
+            console.log('✅ Dashboard loaded');
+        }
+        
+        function setupLoginHandler() {
+            const loginForm = document.getElementById('loginForm');
+            if (!loginForm) {
+                console.error('❌ Login form not found');
+                return;
+            }
+            
+            loginForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                console.log('🔐 Attempting login for:', username);
+                
+                // Hide previous errors
+                hideLoginError();
+                
+                try {
+                    // Make API call
+                    const response = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ username, password })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        console.log('✅ Login successful');
+                        
+                        // Store user data
+                        currentUser = data.data.user;
+                        authToken = data.data.token;
+                        localStorage.setItem('token', authToken);
+                        
+                        // Show dashboard
+                        showDashboard(currentUser);
+                        
+                    } else {
+                        console.log('❌ Login failed:', data.message);
+                        showLoginError(data.message || 'Credenciales inválidas');
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ Login error:', error);
+                    showLoginError('Error de conexión al servidor');
+                }
+            });
+        }
+        
+        function setupNavigation(user) {
+            if (!navMenu) return;
+            
+            let menuHTML = '';
+            
+            if (user.role === 'admin') {
+                menuHTML = `
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" id="dashboardLink">
+                            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="leadsLink">
+                            <i class="bi bi-person-lines-fill me-1"></i>Gestión de Leads
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="usersLink">
+                            <i class="bi bi-people me-1"></i>Vendedores
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="importLink">
+                            <i class="bi bi-upload me-1"></i>Importar CSV
+                        </a>
+                    </li>
+                `;
+            } else {
+                menuHTML = `
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" id="myLeadsLink">
+                            <i class="bi bi-person-lines-fill me-1"></i>Mis Leads
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="myStatsLink">
+                            <i class="bi bi-graph-up me-1"></i>Estadísticas
+                        </a>
+                    </li>
+                `;
+            }
+            
+            navMenu.innerHTML = menuHTML;
+            
+            // Setup navigation event listeners
+            setupNavigationEventListeners(user);
+            
+            // Setup logout
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    logout();
+                });
+            }
+            
+            // Pagination buttons
+            const prevPageBtn = document.getElementById('prevPageBtn');
+            const nextPageBtn = document.getElementById('nextPageBtn');
+            
+            if (prevPageBtn) {
+                prevPageBtn.addEventListener('click', () => {
+                    if (currentPreviewPage > 1) {
+                        loadPreviewPage(currentPreviewPage - 1);
+                    }
+                });
+            }
+            
+            if (nextPageBtn) {
+                nextPageBtn.addEventListener('click', () => {
+                    if (previewPagination && currentPreviewPage < previewPagination.totalPages) {
+                        loadPreviewPage(currentPreviewPage + 1);
+                    }
+                });
+            }
+        }
+        
+        function setupNavigationEventListeners(user) {
+            // Admin navigation event listeners
+            if (user.role === 'admin') {
+                const dashboardLink = document.getElementById('dashboardLink');
+                const leadsLink = document.getElementById('leadsLink');
+                const usersLink = document.getElementById('usersLink');
+                const importLink = document.getElementById('importLink');
+                
+                if (dashboardLink) {
+                    dashboardLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        // Usar el sistema modular si está disponible
+                        if (window.crmApp) {
+                            window.crmApp.loadDashboardContent();
+                        } else {
+                            loadDashboard(); // Fallback
+                        }
+                    });
+                }
+                
+                if (leadsLink) {
+                    leadsLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        loadLeadsManagement();
+                    });
+                }
+                
+                if (usersLink) {
+                    usersLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        loadUsersManagement();
+                    });
+                }
+                
+                if (importLink) {
+                    importLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        loadImportTool();
+                    });
+                }
+            } else {
+                // Seller navigation event listeners
+                const myLeadsLink = document.getElementById('myLeadsLink');
+                const myStatsLink = document.getElementById('myStatsLink');
+                
+                if (myLeadsLink) {
+                    myLeadsLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        loadMyLeads();
+                    });
+                }
+                
+                if (myStatsLink) {
+                    myStatsLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        loadMyStats();
+                    });
+                }
+            }
+        }
+        
+        function loadDashboardContent(user) {
+            if (!dashboardContainer) return;
+            
+            console.log('🔄 Loading dashboard content for:', user.role);
+            
+            // Usar el sistema modular avanzado si está disponible
+            if (window.dashboardManager && typeof window.dashboardManager.loadTemporalDashboard === 'function') {
+                console.log('✅ Using advanced dashboard system');
+                window.dashboardManager.loadTemporalDashboard();
+                return;
+            }
+            
+            // Fallback básico si el sistema avanzado no está disponible
+            console.log('⚠️ Using fallback dashboard');
+            let dashboardHTML = `
+                <div class="row">
+                    <div class="col-12">
+                        <h2><i class="bi bi-speedometer2 me-2"></i>Dashboard ${user.role === 'admin' ? 'Administrativo' : 'del Vendedor'}</h2>
+                        <p class="text-muted">Bienvenido ${user.name}</p>
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Sistema avanzado no disponible. Cargando sistema básico...
+                            <br><small>Refresca la página si ves este mensaje.</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            dashboardContainer.innerHTML = dashboardHTML;
+        }
+        
+        // Helper functions
+        function showLoginError(message) {
+            const errorDiv = document.getElementById('loginError');
+            if (errorDiv) {
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+            }
+        }
+        
+        function hideLoginError() {
+            const errorDiv = document.getElementById('loginError');
+            if (errorDiv) {
+                errorDiv.style.display = 'none';
+            }
+        }
+        
+        function logout() {
+            console.log('🚪 Logging out...');
+            
+            // Clear data
+            currentUser = null;
+            authToken = null;
+            localStorage.removeItem('token');
+            
+            // Show login
+            showLoginForm();
+            
+            // Reset form
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.reset();
+            }
+            
+            console.log('✅ Logged out successfully');
+        }
+        
+        function loadDashboard() {
+            if (currentUser) {
+                setActiveNavLink('dashboardLink');
+                loadDashboardContent(currentUser);
+            }
+        }
+        
+        // Admin functions
+        let currentLeadsPage = 1;
+        let leadsPagination = null;
+        
+        // Function to refresh just the statistics and distribution
+        async function refreshStatistics() {
+            console.log('📊 Refreshing statistics...');
+            try {
+                const response = await fetch('/api/leads/stats', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const statsData = await response.json();
+                
+                if (statsData.success) {
+                    console.log('✅ Statistics refreshed:', statsData.data);
+                    
+                    // Since statistics are part of the main leads display, 
+                    // we need to trigger a full refresh to update the distribution table
+                    // This is more efficient than trying to update individual elements
+                    return statsData.data;
+                } else {
+                    console.error('❌ Error refreshing stats:', statsData.message);
+                    return null;
+                }
+            } catch (error) {
+                console.error('❌ Error fetching statistics:', error);
+                return null;
+            }
+        }
+        
+        async function loadLeadsManagement(page = 1, limit = 50) {
+            console.log('🔍 loadLeadsManagement called, currentUser:', currentUser);
+            if (!currentUser || currentUser.role !== 'admin') {
+                console.log('❌ Access denied - User:', currentUser?.name, 'Role:', currentUser?.role);
+                showError('Acceso denegado: Se requieren permisos de administrador');
+                return;
+            }
+            
+            setActiveNavLink('leadsLink');
+            console.log('📋 Loading leads management...');
+            
+            try {
+                // Get filter value if it exists
+                const filterElement = document.getElementById('leadsFilter');
+                const filter = filterElement ? filterElement.value : 'all';
+                
+                // Build query parameters
+                const params = new URLSearchParams({
+                    page: page.toString(),
+                    limit: limit.toString()
+                });
+                
+                // Add filter parameters
+                if (filter && filter !== 'all') {
+                    switch (filter) {
+                        case 'assigned':
+                            params.append('assignedTo', 'not-null');
+                            break;
+                        case 'unassigned':
+                            params.append('assignedTo', 'null');
+                            break;
+                        case 'uncontacted':
+                            params.append('status', 'uncontacted');
+                            break;
+                        case 'contacted':
+                            params.append('status', 'contacted');
+                            break;
+                        case 'won':
+                            params.append('status', 'won');
+                            break;
+                    }
+                }
+                
+                // Load leads and statistics in parallel
+                const [leadsResponse, statsResponse] = await Promise.all([
+                    fetch(`/api/leads?${params.toString()}`, {
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                    }),
+                    fetch('/api/leads/stats', {
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                    })
+                ]);
+                
+                const leadsData = await leadsResponse.json();
+                const statsData = await statsResponse.json();
+                
+                if (leadsData.success) {
+                    currentLeadsPage = page;
+                    leadsPagination = leadsData.data.pagination;
+                    const stats = statsData.success ? statsData.data : null;
+                    displayLeadsManagement(leadsData.data.leads, leadsData.data.pagination, stats);
+                } else {
+                    showError('Error cargando leads: ' + leadsData.message);
+                }
+            } catch (error) {
+                console.error('Error loading leads:', error);
+                showError('Error de conexión al cargar leads');
+            }
+        }
+        
+        function displayLeadsManagement(leads, pagination, stats = null) {
+            const html = `
+                <div class="row">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div>
+                                <h2><i class="bi bi-person-lines-fill me-2"></i>Gestión de Leads</h2>
+                                <small class="text-muted">
+                                    ${pagination ? `Mostrando ${((pagination.currentPage - 1) * 50) + 1}-${Math.min(pagination.currentPage * 50, pagination.totalLeads)} de ${pagination.totalLeads.toLocaleString()} leads` : `${leads.length} leads`}
+                                </small>
+                            </div>
+                            <div>
+                                <button class="btn btn-success me-2" id="bulkAssignBtn">
+                                    <i class="bi bi-people me-2"></i>Asignación Masiva
+                                </button>
+                                <button class="btn btn-primary" id="importCsvBtn">
+                                    <i class="bi bi-upload me-2"></i>Importar CSV
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <h3>${stats ? stats.total.toLocaleString() : (pagination ? pagination.totalLeads.toLocaleString() : leads.length)}</h3>
+                                <p class="mb-0">Total Leads</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                        <div class="card stat-card-info">
+                            <div class="card-body text-center">
+                                <h3>${stats ? stats.assigned.toLocaleString() : leads.filter(l => l.assignedTo).length}</h3>
+                                <p class="mb-0">Asignados</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                        <div class="card stat-card-warning">
+                            <div class="card-body text-center">
+                                <h3>${stats ? stats.unassigned.toLocaleString() : leads.filter(l => !l.assignedTo).length}</h3>
+                                <p class="mb-0">Sin Asignar</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                        <div class="card stat-card-danger">
+                            <div class="card-body text-center">
+                                <h3>${stats ? stats.uncontacted.toLocaleString() : leads.filter(l => l.status === 'uncontacted').length}</h3>
+                                <p class="mb-0">Sin Contactar</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                        <div class="card stat-card-secondary">
+                            <div class="card-body text-center">
+                                <h3>${stats ? stats.contacted.toLocaleString() : leads.filter(l => l.status !== 'uncontacted').length}</h3>
+                                <p class="mb-0">Contactados</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                        <div class="card stat-card-success">
+                            <div class="card-body text-center">
+                                <h3>${stats ? stats.won.toLocaleString() : leads.filter(l => l.status === 'won').length}</h3>
+                                <p class="mb-0">Ganados</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                ${stats && stats.distribution && stats.distribution.length > 0 ? `
+                <!-- Distribution by Seller -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-pie-chart me-2"></i>Distribución por Vendedor</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Vendedor</th>
+                                        <th class="text-center">Total Asignados</th>
+                                        <th class="text-center">Sin Contactar</th>
+                                        <th class="text-center">Contactados</th>
+                                        <th class="text-center">Ganados</th>
+                                        <th class="text-center">Tasa Conversión</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${stats.distribution.map(seller => {
+                                        const conversionRate = seller.totalAssigned > 0 ? ((seller.won / seller.totalAssigned) * 100).toFixed(1) : '0.0';
+                                        return `
+                                        <tr>
+                                            <td><strong>${seller.sellerName}</strong></td>
+                                            <td class="text-center"><span class="badge bg-primary">${seller.totalAssigned}</span></td>
+                                            <td class="text-center"><span class="badge bg-warning">${seller.uncontacted}</span></td>
+                                            <td class="text-center"><span class="badge bg-info">${seller.contacted}</span></td>
+                                            <td class="text-center"><span class="badge bg-success">${seller.won}</span></td>
+                                            <td class="text-center"><span class="badge bg-secondary">${conversionRate}%</span></td>
+                                        </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+                
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5><i class="bi bi-list me-2"></i>Lista de Leads</h5>
+                                <div class="d-flex gap-2">
+                                    <select class="form-select form-select-sm" id="leadsFilter" style="width: 200px;">
+                                        <option value="all">Todos los Leads</option>
+                                        <option value="assigned">Solo Asignados</option>
+                                        <option value="unassigned">Solo Sin Asignar</option>
+                                        <option value="uncontacted">Solo Sin Contactar</option>
+                                        <option value="contacted">Solo Contactados</option>
+                                        <option value="won">Solo Ganados</option>
+                                    </select>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="loadLeadsManagement(1)" id="refreshLeadsBtn">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Refrescar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Establecimiento</th>
+                                                <th>Tipo</th>
+                                                <th>Teléfono</th>
+                                                <th>Dirección</th>
+                                                <th>Rating</th>
+                                                <th>Provincia</th>
+                                                <th>Estado</th>
+                                                <th>Asignado a</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${leads.map(lead => `
+                                                <tr>
+                                                    <td>
+                                                        <strong>${lead.name}</strong>
+                                                        ${lead.website ? `<br><small><a href="${lead.website}" target="_blank">🔗 Website</a></small>` : ''}
+                                                        ${lead.googleUrl ? `<br><small><a href="${lead.googleUrl}" target="_blank">📍 Google Maps</a></small>` : ''}
+                                                    </td>
+                                                    <td><span class="badge bg-info">${lead.type || 'N/A'}</span></td>
+                                                    <td>
+                                                        ${lead.phone ? `<a href="tel:${lead.phone}">${lead.phone}</a>` : '<span class="text-muted">Sin teléfono</span>'}
+                                                        ${lead.email ? `<br><a href="mailto:${lead.email}">${lead.email}</a>` : ''}
+                                                    </td>
+                                                    <td>
+                                                        ${lead.address ? `${lead.address}` : '<span class="text-muted">Sin dirección</span>'}
+                                                        ${lead.schedule ? `<br><small class="text-muted">${lead.schedule}</small>` : ''}
+                                                    </td>
+                                                    <td>
+                                                        ${lead.rating ? 
+                                                            `⭐ ${lead.rating} ${lead.reviewCount ? `(${lead.reviewCount})` : ''}` : 
+                                                            '<span class="text-muted">Sin rating</span>'}
+                                                    </td>
+                                                    <td><span class="badge bg-secondary">${lead.province || 'N/A'}</span></td>
+                                                    <td><span class="badge badge-${getStatusClass(lead.status)}">${getStatusText(lead.status)}</span></td>
+                                                    <td>${lead.assignedTo ? lead.assignedTo.name : '<span class="text-muted">Sin asignar</span>'}</td>
+                                                    <td>
+                                                        <button class="btn btn-sm btn-outline-primary" data-action="edit" data-lead-id="${lead._id}">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-success" data-action="assign" data-lead-id="${lead._id}">
+                                                            <i class="bi bi-person-plus"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                ${pagination ? `
+                                <!-- Controles de paginación -->
+                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="text-muted small">
+                                        Página ${pagination.currentPage} de ${pagination.totalPages}
+                                    </div>
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-outline-primary" id="prevLeadsPageBtn" 
+                                                ${!pagination.hasPrev ? 'disabled' : ''}>
+                                            <i class="bi bi-chevron-left"></i> Anterior
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary" id="nextLeadsPageBtn"
+                                                ${!pagination.hasNext ? 'disabled' : ''}>
+                                            Siguiente <i class="bi bi-chevron-right"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            dashboardContainer.innerHTML = html;
+            
+            // Setup leads management event listeners
+            const importCsvBtn = document.getElementById('importCsvBtn');
+            if (importCsvBtn) {
+                importCsvBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    loadImportTool();
+                });
+            }
+            
+            // Bulk assignment button
+            const bulkAssignBtn = document.getElementById('bulkAssignBtn');
+            if (bulkAssignBtn) {
+                bulkAssignBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    showBulkAssignmentModal();
+                });
+            }
+            
+            // Pagination buttons
+            const prevLeadsPageBtn = document.getElementById('prevLeadsPageBtn');
+            const nextLeadsPageBtn = document.getElementById('nextLeadsPageBtn');
+            
+            if (prevLeadsPageBtn) {
+                prevLeadsPageBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (leadsPagination && leadsPagination.hasPrev) {
+                        loadLeadsManagement(currentLeadsPage - 1);
+                    }
+                });
+            }
+            
+            if (nextLeadsPageBtn) {
+                nextLeadsPageBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (leadsPagination && leadsPagination.hasNext) {
+                        loadLeadsManagement(currentLeadsPage + 1);
+                    }
+                });
+            }
+            
+            // Setup filter change listener
+            const leadsFilter = document.getElementById('leadsFilter');
+            if (leadsFilter) {
+                leadsFilter.addEventListener('change', function(e) {
+                    console.log('🔍 Filter changed to:', e.target.value);
+                    loadLeadsManagement(1); // Reset to page 1 when filtering
+                });
+            }
+            
+            // Setup event delegation for lead action buttons
+            dashboardContainer.addEventListener('click', function(e) {
+                const target = e.target.closest('[data-action]');
+                if (!target) return;
+                
+                e.preventDefault();
+                const action = target.dataset.action;
+                const leadId = target.dataset.leadId;
+                
+                switch (action) {
+                    case 'edit':
+                        editLead(leadId);
+                        break;
+                    case 'assign':
+                        assignLead(leadId);
+                        break;
+                    case 'contact':
+                        contactLead(leadId);
+                        break;
+                    case 'update-status':
+                        const status = target.dataset.status;
+                        updateLeadStatus(leadId, status);
+                        break;
+                }
+            });
+        }
+        
+        async function loadMyLeads() {
+            if (!currentUser) {
+                showError('Usuario no autenticado');
+                return;
+            }
+            if (currentUser.role !== 'seller' && currentUser.role !== 'admin') {
+                showError('Acceso denegado: Función no disponible para tu rol');
+                return;
+            }
+            
+            setActiveNavLink('myLeadsLink');
+            console.log('📋 Loading my leads...');
+            
+            try {
+                const response = await fetch('/api/leads', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayMyLeads(data.data.leads);
+                } else {
+                    showError('Error cargando mis leads: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error loading my leads:', error);
+                showError('Error de conexión al cargar mis leads');
+            }
+        }
+        
+        function displayMyLeads(leads) {
+            const html = `
+                <div class="row">
+                    <div class="col-12">
+                        <h2><i class="bi bi-person-lines-fill me-2"></i>Mis Leads</h2>
+                        <p class="text-muted">Gestiona tus leads asignados</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-4 col-sm-6 mb-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <h3>${leads.length}</h3>
+                                <p class="mb-0">Total Asignados</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6 mb-3">
+                        <div class="card stat-card-success">
+                            <div class="card-body text-center">
+                                <h3>${leads.filter(l => l.status !== 'uncontacted').length}</h3>
+                                <p class="mb-0">Contactados</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6 mb-3">
+                        <div class="card stat-card-warning">
+                            <div class="card-body text-center">
+                                <h3>${leads.filter(l => l.status === 'uncontacted').length}</h3>
+                                <p class="mb-0">Pendientes</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    ${leads.map(lead => `
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card lead-card status-${lead.status}">
+                                <div class="card-body">
+                                    <h6 class="card-title"><i class="bi bi-building me-1"></i>${lead.name}</h6>
+                                    <p class="card-text">
+                                        <strong>Contacto:</strong> ${lead.contact}<br>
+                                        <strong>Teléfono:</strong> ${lead.phone}<br>
+                                        <strong>Tipo:</strong> ${lead.type || 'N/A'}
+                                    </p>
+                                    <span class="badge badge-${getStatusClass(lead.status)} mb-2">${getStatusText(lead.status)}</span>
+                                    <div class="quick-actions">
+                                        <button class="btn btn-primary btn-quick" data-action="contact" data-lead-id="${lead._id}">
+                                            <i class="bi bi-telephone me-1"></i>Contactar
+                                        </button>
+                                        <button class="btn btn-success btn-quick" data-action="update-status" data-lead-id="${lead._id}" data-status="contacted">
+                                            <i class="bi bi-check me-1"></i>Contactado
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            dashboardContainer.innerHTML = html;
+        }
+        
+        // Utility functions
+        function setActiveNavLink(activeId) {
+            // Remove active class from all nav links
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            
+            // Add active class to selected link
+            const activeLink = document.getElementById(activeId);
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+        }
+        
+        function getStatusClass(status) {
+            const statusClasses = {
+                'uncontacted': 'danger',
+                'contacted': 'warning',
+                'interested': 'info',
+                'meeting': 'primary',
+                'won': 'success',
+                'lost': 'secondary'
+            };
+            return statusClasses[status] || 'secondary';
+        }
+        
+        function getStatusText(status) {
+            const statusTexts = {
+                'uncontacted': 'Sin Contactar',
+                'contacted': 'Contactado',
+                'interested': 'Interesado',
+                'meeting': 'Reunión',
+                'won': 'Ganado',
+                'lost': 'Perdido'
+            };
+            return statusTexts[status] || status;
+        }
+        
+        function showError(message) {
+            console.error('Error:', message);
+            alert('Error: ' + message);
+        }
+        
+        function showToast(title, message, type = 'info') {
+            // Simple toast implementation using alert for now
+            console.log(`${title}: ${message} (${type})`);
+            if (type === 'success') {
+                alert(`✅ ${title}: ${message}`);
+            } else if (type === 'error') {
+                alert(`❌ ${title}: ${message}`);
+            } else {
+                alert(`ℹ️ ${title}: ${message}`);
+            }
+        }
+        
+        // Lead management functions
+        async function editLead(leadId) {
+            try {
+                // Get lead data first
+                const response = await fetch(`/api/leads/${leadId}`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showEditLeadModal(data.data.lead);
+                } else {
+                    showError('Error cargando lead: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error loading lead:', error);
+                showError('Error de conexión al cargar lead');
+            }
+        }
+        
+        function showEditLeadModal(lead) {
+            const modalHtml = `
+                <div class="modal fade" id="editLeadModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Editar Lead: ${lead.name}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="editLeadForm">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Nombre del Establecimiento *</label>
+                                                <input type="text" class="form-control" name="name" value="${lead.name}" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Tipo</label>
+                                                <input type="text" class="form-control" name="type" value="${lead.type || ''}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Teléfono</label>
+                                                <input type="tel" class="form-control" name="phone" value="${lead.phone || ''}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Email</label>
+                                                <input type="email" class="form-control" name="email" value="${lead.email || ''}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Dirección</label>
+                                        <input type="text" class="form-control" name="address" value="${lead.address || ''}">
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">Provincia</label>
+                                                <input type="text" class="form-control" name="province" value="${lead.province || ''}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">Ciudad</label>
+                                                <input type="text" class="form-control" name="city" value="${lead.city || ''}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">Rating</label>
+                                                <input type="number" class="form-control" name="rating" min="0" max="5" step="0.1" value="${lead.rating || ''}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Sitio Web</label>
+                                                <input type="url" class="form-control" name="website" value="${lead.website || ''}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Estado</label>
+                                                <select class="form-control" name="status">
+                                                    <option value="uncontacted" ${lead.status === 'uncontacted' ? 'selected' : ''}>Sin Contactar</option>
+                                                    <option value="contacted" ${lead.status === 'contacted' ? 'selected' : ''}>Contactado</option>
+                                                    <option value="interested" ${lead.status === 'interested' ? 'selected' : ''}>Interesado</option>
+                                                    <option value="meeting" ${lead.status === 'meeting' ? 'selected' : ''}>Reunión</option>
+                                                    <option value="won" ${lead.status === 'won' ? 'selected' : ''}>Ganado</option>
+                                                    <option value="lost" ${lead.status === 'lost' ? 'selected' : ''}>Perdido</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Notas</label>
+                                        <textarea class="form-control" name="notes" rows="3">${lead.notes || ''}</textarea>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-primary" onclick="saveLeadChanges('${lead._id}')">Guardar Cambios</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            const modal = new bootstrap.Modal(document.getElementById('editLeadModal'));
+            modal.show();
+            
+            // Remove modal from DOM when closed
+            document.getElementById('editLeadModal').addEventListener('hidden.bs.modal', function() {
+                this.remove();
+            });
+        }
+        
+        async function saveLeadChanges(leadId) {
+            try {
+                const form = document.getElementById('editLeadForm');
+                const formData = new FormData(form);
+                
+                const leadData = {};
+                for (let [key, value] of formData.entries()) {
+                    if (value.trim()) leadData[key] = value.trim();
+                }
+                
+                const response = await fetch(`/api/leads/${leadId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(leadData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Éxito', 'Lead actualizado correctamente', 'success');
+                    
+                    // Close modal and refresh leads
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editLeadModal'));
+                    modal.hide();
+                    
+                    loadLeadsManagement(currentLeadsPage);
+                } else {
+                    showError('Error actualizando lead: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error saving lead:', error);
+                showError('Error de conexión al guardar lead');
+            }
+        }
+        
+        function showBulkAssignmentModal() {
+            const modalHtml = `
+                <div class="modal fade" id="bulkAssignModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Asignación Masiva de Leads</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    <strong>Importante:</strong> Solo se pueden asignar masivamente leads con estado "Sin Contactar". 
+                                    Los leads en proceso o interesados requieren asignación individual.
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Criterios de Selección</h6>
+                                        <div class="mb-3">
+                                            <label class="form-label">Estado</label>
+                                            <select class="form-control" id="bulkStatus">
+                                                <option value="uncontacted" selected>Sin Contactar</option>
+                                                <option value="">Todos los estados</option>
+                                                <option value="contacted">Contactado</option>
+                                                <option value="interested">Interesado</option>
+                                            </select>
+                                            <small class="text-muted">Recomendado: Solo "Sin Contactar"</small>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Provincia <span id="provinceCount" class="badge bg-secondary">Cargando...</span></label>
+                                            <select class="form-control" id="bulkProvince">
+                                                <option value="">Cargando provincias...</option>
+                                            </select>
+                                            <small class="text-muted">Solo se muestran provincias con leads sin asignar</small>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Cantidad a Asignar</label>
+                                            <input type="number" class="form-control" id="bulkQuantity" min="1" max="500" value="10">
+                                            <small class="text-muted">Máximo 500 leads por operación</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Estrategia de Distribución</h6>
+                                        <div class="mb-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="distributionStrategy" id="equitativo" value="equitativo" checked>
+                                                <label class="form-check-label" for="equitativo">
+                                                    <strong>Distribución Equitativa</strong><br>
+                                                    <small class="text-muted">Distribuye entre los usuarios seleccionados por igual</small>
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="distributionStrategy" id="regional" value="regional">
+                                                <label class="form-check-label" for="regional">
+                                                    <strong>Por Región/Provincia</strong><br>
+                                                    <small class="text-muted">Asigna por ubicación geográfica cuando sea posible</small>
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="distributionStrategy" id="specific" value="specific">
+                                                <label class="form-check-label" for="specific">
+                                                    <strong>Selección Específica</strong><br>
+                                                    <small class="text-muted">Permite seleccionar leads específicos</small>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3" id="userSelection">
+                                            <label class="form-label d-flex justify-content-between align-items-center">
+                                                Usuarios para Asignación
+                                                <span id="selectedUsersCount" class="badge bg-primary">0 seleccionados</span>
+                                            </label>
+                                            <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox" id="selectAllUsers">
+                                                    <label class="form-check-label fw-bold" for="selectAllUsers">
+                                                        Seleccionar Todos
+                                                    </label>
+                                                </div>
+                                                <hr class="my-2">
+                                                <div id="usersCheckboxList">
+                                                    <!-- Users will be loaded dynamically -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Lead Selection for Specific Strategy -->
+                                        <div class="mb-3" id="leadSelection" style="display: none;">
+                                            <label class="form-label">Seleccionar Leads Específicos</label>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="showLeadSelectorBtn">
+                                                <i class="bi bi-list-check me-2"></i>Seleccionar Leads
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-primary" id="executeBulkAssignmentBtn">
+                                    <i class="bi bi-check2 me-2"></i>Ejecutar Asignación
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            const modal = new bootstrap.Modal(document.getElementById('bulkAssignModal'));
+            modal.show();
+            
+            // Load users and provinces for selection
+            loadUsersForBulkAssignment();
+            loadProvincesForBulkAssignment();
+            
+            // Setup event listeners
+            setupBulkAssignmentListeners();
+            
+            // Remove modal from DOM when closed
+            document.getElementById('bulkAssignModal').addEventListener('hidden.bs.modal', function() {
+                this.remove();
+            });
+        }
+        
+        async function loadUsersForBulkAssignment() {
+            try {
+                const response = await fetch('/api/users?role=seller', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const container = document.getElementById('usersCheckboxList');
+                    container.innerHTML = '';
+                    
+                    data.data.users.forEach(user => {
+                        const checkboxDiv = document.createElement('div');
+                        checkboxDiv.className = 'form-check mb-2';
+                        checkboxDiv.innerHTML = `
+                            <input class="form-check-input user-checkbox" type="checkbox" 
+                                   id="user_${user._id}" value="${user._id}">
+                            <label class="form-check-label" for="user_${user._id}">
+                                <strong>${user.name}</strong><br>
+                                <small class="text-muted">${user.username} • ${user.email}</small>
+                            </label>
+                        `;
+                        container.appendChild(checkboxDiv);
+                    });
+                    
+                    updateUserSelection(); // Initialize count
+                } else {
+                    const container = document.getElementById('usersCheckboxList');
+                    container.innerHTML = '<div class="text-danger">No se encontraron vendedores</div>';
+                }
+            } catch (error) {
+                console.error('Error loading users:', error);
+                const container = document.getElementById('usersCheckboxList');
+                container.innerHTML = '<div class="text-danger">Error cargando usuarios</div>';
+            }
+        }
+        
+        async function loadProvincesForBulkAssignment() {
+            try {
+                const response = await fetch('/api/leads/provinces-with-unassigned', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const provinceSelect = document.getElementById('bulkProvince');
+                    const provinceCount = document.getElementById('provinceCount');
+                    
+                    provinceSelect.innerHTML = '<option value="">Todas las provincias</option>';
+                    
+                    if (data.data.provinces && data.data.provinces.length > 0) {
+                        data.data.provinces.forEach(province => {
+                            provinceSelect.innerHTML += `<option value="${province.name}">${province.name} (${province.count} leads)</option>`;
+                        });
+                        provinceCount.textContent = `${data.data.provinces.length} provincias`;
+                        provinceCount.className = 'badge bg-success';
+                    } else {
+                        provinceSelect.innerHTML = '<option value="">No hay provincias con leads sin asignar</option>';
+                        provinceCount.textContent = 'Sin datos';
+                        provinceCount.className = 'badge bg-warning';
+                    }
+                } else {
+                    // Fallback to default provinces if API fails
+                    const provinceSelect = document.getElementById('bulkProvince');
+                    provinceSelect.innerHTML = `
+                        <option value="">Todas las provincias</option>
+                        <option value="Buenos Aires">Buenos Aires</option>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading provinces:', error);
+                // Keep loading indicator on error
+            }
+        }
+        
+        function updateUserSelection() {
+            const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+            const count = checkboxes.length;
+            const badge = document.getElementById('selectedUsersCount');
+            const selectAll = document.getElementById('selectAllUsers');
+            const totalCheckboxes = document.querySelectorAll('.user-checkbox');
+            
+            badge.textContent = `${count} seleccionados`;
+            badge.className = count > 0 ? 'badge bg-success' : 'badge bg-secondary';
+            
+            // Update select all checkbox state
+            if (count === 0) {
+                selectAll.indeterminate = false;
+                selectAll.checked = false;
+            } else if (count === totalCheckboxes.length) {
+                selectAll.indeterminate = false;
+                selectAll.checked = true;
+            } else {
+                selectAll.indeterminate = true;
+                selectAll.checked = false;
+            }
+        }
+        
+        function toggleAllUsers(checkbox) {
+            const userCheckboxes = document.querySelectorAll('.user-checkbox');
+            userCheckboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            updateUserSelection();
+        }
+        
+        function setupBulkAssignmentListeners() {
+            // Show/hide lead selection based on strategy
+            const strategyRadios = document.querySelectorAll('input[name="distributionStrategy"]');
+            strategyRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const leadSelection = document.getElementById('leadSelection');
+                    if (this.value === 'specific') {
+                        leadSelection.style.display = 'block';
+                    } else {
+                        leadSelection.style.display = 'none';
+                    }
+                });
+            });
+            
+            // Status change warning
+            const statusSelect = document.getElementById('bulkStatus');
+            statusSelect.addEventListener('change', function() {
+                if (this.value !== 'uncontacted' && this.value !== '') {
+                    showToast('Advertencia', 'Se recomienda asignar solo leads "Sin Contactar" masivamente', 'warning');
+                }
+            });
+            
+            // Select all users checkbox
+            const selectAllUsers = document.getElementById('selectAllUsers');
+            if (selectAllUsers) {
+                selectAllUsers.addEventListener('change', function() {
+                    toggleAllUsers(this);
+                });
+            }
+            
+            // User checkboxes (will be added after users are loaded)
+            document.addEventListener('change', function(e) {
+                if (e.target.matches('.user-checkbox')) {
+                    updateUserSelection();
+                }
+            });
+            
+            // Show lead selector button
+            const showLeadSelectorBtn = document.getElementById('showLeadSelectorBtn');
+            if (showLeadSelectorBtn) {
+                showLeadSelectorBtn.addEventListener('click', function() {
+                    showLeadSelector();
+                });
+            }
+            
+            // Execute bulk assignment button
+            const executeBulkAssignmentBtn = document.getElementById('executeBulkAssignmentBtn');
+            if (executeBulkAssignmentBtn) {
+                executeBulkAssignmentBtn.addEventListener('click', function() {
+                    executeBulkAssignment();
+                });
+            }
+        }
+        
+        function showLeadSelector() {
+            showToast('Información', 'Funcionalidad de selección específica de leads en desarrollo', 'info');
+        }
+        
+        async function executeBulkAssignment() {
+            try {
+                const strategy = document.querySelector('input[name="distributionStrategy"]:checked').value;
+                const quantity = document.getElementById('bulkQuantity').value;
+                const status = document.getElementById('bulkStatus').value;
+                const province = document.getElementById('bulkProvince').value;
+                
+                // Get selected users
+                const selectedUsers = Array.from(document.querySelectorAll('.user-checkbox:checked'))
+                    .map(checkbox => checkbox.value);
+                
+                // Validation
+                if (selectedUsers.length === 0) {
+                    showError('Debe seleccionar al menos un usuario para la asignación');
+                    return;
+                }
+                
+                if (!quantity || quantity <= 0) {
+                    showError('La cantidad debe ser mayor a 0');
+                    return;
+                }
+                
+                if (strategy === 'specific') {
+                    showError('La selección específica de leads aún no está implementada. Use distribución equitativa o regional.');
+                    return;
+                }
+                
+                // Business rule validation
+                if (status !== 'uncontacted' && status !== '') {
+                    const confirmed = confirm('¿Está seguro de asignar leads que no están en estado "Sin Contactar"? Se recomienda asignar manualmente leads en proceso.');
+                    if (!confirmed) return;
+                }
+                
+                const assignmentData = {
+                    strategy,
+                    quantity: parseInt(quantity),
+                    criteria: { status, province },
+                    userIds: selectedUsers  // Changed from userId to userIds array
+                };
+                
+                const response = await fetch('/api/leads/bulk-assign', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(assignmentData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Éxito', `${result.data.assignedCount} leads asignados correctamente`, 'success');
+                    
+                    // Close modal and refresh leads with updated statistics
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('bulkAssignModal'));
+                    modal.hide();
+                    
+                    // Refresh both statistics and current leads view efficiently
+                    await Promise.all([
+                        refreshStatistics(),
+                        loadLeadsManagement(currentLeadsPage)
+                    ]);
+                } else {
+                    showError('Error en asignación masiva: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error in bulk assignment:', error);
+                showError('Error de conexión en asignación masiva');
+            }
+        }
+        
+        // Gestión de Usuarios/Vendedores
+        function loadUsersManagement() {
+            if (!currentUser || currentUser.role !== 'admin') {
+                showError('Acceso denegado: Se requieren permisos de administrador');
+                return;
+            }
+            
+            setActiveNavLink('usersLink');
+            console.log('🔄 Loading users management...');
+            
+            // Usar el sistema avanzado si está disponible
+            if (window.dashboardManager && typeof window.dashboardManager.loadSellersOverview === 'function') {
+                console.log('✅ Using advanced users management');
+                // Crear contenedor para vendedores
+                dashboardContainer.innerHTML = `
+                    <div class="row">
+                        <div class="col-12">
+                            <h2><i class="bi bi-people me-2"></i>Gestión de Vendedores</h2>
+                        </div>
+                    </div>
+                    <div id="sellersOverview"></div>
+                `;
+                window.dashboardManager.loadSellersOverview();
+                return;
+            }
+            
+            // Fallback básico
+            console.log('⚠️ Using fallback users management');
+            dashboardContainer.innerHTML = `
+                <div class="row">
+                    <div class="col-12">
+                        <h2><i class="bi bi-people me-2"></i>Gestión de Vendedores</h2>
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Sistema avanzado no disponible. Refresca la página.
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function loadImportTool() {
+            setActiveNavLink('importLink');
+            dashboardContainer.innerHTML = `
+                <div class="row">
+                    <div class="col-12">
+                        <h2><i class="bi bi-upload me-2"></i>Importar Leads CSV</h2>
+                        <p class="text-muted">Sube un archivo CSV con los leads de Google Maps para importar al sistema</p>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-cloud-upload me-2"></i>Subir Archivo CSV</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="uploadArea" class="import-progress text-center p-4 mb-3">
+                                    <i class="bi bi-cloud-upload display-4 text-primary mb-3"></i>
+                                    <h5>Arrastra tu archivo CSV aquí</h5>
+                                    <p class="text-muted">O haz clic para seleccionar archivo</p>
+                                    <input type="file" id="csvFileInput" accept=".csv,.xlsx" style="display: none;">
+                                    <button class="btn btn-primary" id="selectFileBtn">
+                                        <i class="bi bi-folder2-open me-2"></i>Seleccionar Archivo
+                                    </button>
+                                </div>
+                                
+                                <div id="fileInfo" style="display: none;" class="alert alert-info">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong id="fileName"></strong>
+                                            <br><small id="fileSize" class="text-muted"></small>
+                                        </div>
+                                        <button class="btn btn-sm btn-success" id="processCsvBtn">
+                                            <i class="bi bi-check2 me-1"></i>Procesar
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div id="processingStatus" style="display: none;" class="alert alert-warning">
+                                    <div class="d-flex align-items-center">
+                                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                        <span>Procesando archivo CSV...</span>
+                                    </div>
+                                </div>
+                                
+                                <div id="csvPreview" style="display: none;">
+                                    <h6><i class="bi bi-eye me-2"></i>Vista Previa</h6>
+                                    
+                                    <!-- Controles de paginación superior -->
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div class="text-muted small" id="previewInfo">
+                                            <!-- Info de paginación -->
+                                        </div>
+                                        <div class="btn-group btn-group-sm" role="group" id="previewPagination">
+                                            <button type="button" class="btn btn-outline-primary" id="prevPageBtn" disabled>
+                                                <i class="bi bi-chevron-left"></i> Anterior
+                                            </button>
+                                            <button type="button" class="btn btn-outline-primary" id="nextPageBtn">
+                                                Siguiente <i class="bi bi-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered" id="previewTable">
+                                            <!-- Contenido dinámico -->
+                                        </table>
+                                    </div>
+                                    
+                                    <!-- Indicador de carga para paginación -->
+                                    <div id="previewLoading" class="text-center py-3" style="display: none;">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                            <span class="visually-hidden">Cargando...</span>
+                                        </div>
+                                        <span class="ms-2">Cargando página...</span>
+                                    </div>
+                                    
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <h6><i class="bi bi-arrow-left-right me-2"></i>Mapeo de Columnas</h6>
+                                            <div id="columnMapping">
+                                                <!-- Mapeo dinámico -->
+                                            </div>
+                                            
+                                            <div class="mt-3 p-3 border rounded bg-light">
+                                                <h6 class="small"><i class="bi bi-geo-alt me-2"></i>Configuración Regional</h6>
+                                                <div class="mb-2">
+                                                    <label class="form-label small">Provincia por defecto</label>
+                                                    <select class="form-select form-select-sm" id="defaultProvince">
+                                                        <option value="Buenos Aires">Buenos Aires</option>
+                                                        <option value="Córdoba">Córdoba</option>
+                                                        <option value="Santa Fe">Santa Fe</option>
+                                                        <option value="Mendoza">Mendoza</option>
+                                                        <option value="Tucumán">Tucumán</option>
+                                                        <option value="Entre Ríos">Entre Ríos</option>
+                                                        <option value="Salta">Salta</option>
+                                                        <option value="Misiones">Misiones</option>
+                                                        <option value="Chaco">Chaco</option>
+                                                        <option value="Corrientes">Corrientes</option>
+                                                        <option value="Santiago del Estero">Santiago del Estero</option>
+                                                        <option value="San Juan">San Juan</option>
+                                                        <option value="Jujuy">Jujuy</option>
+                                                        <option value="Río Negro">Río Negro</option>
+                                                        <option value="Neuquén">Neuquén</option>
+                                                        <option value="Formosa">Formosa</option>
+                                                        <option value="Chubut">Chubut</option>
+                                                        <option value="San Luis">San Luis</option>
+                                                        <option value="Catamarca">Catamarca</option>
+                                                        <option value="La Rioja">La Rioja</option>
+                                                        <option value="La Pampa">La Pampa</option>
+                                                        <option value="Santa Cruz">Santa Cruz</option>
+                                                        <option value="Tierra del Fuego">Tierra del Fuego</option>
+                                                        <option value="CABA">Ciudad Autónoma de Buenos Aires</option>
+                                                    </select>
+                                                </div>
+                                                <small class="text-muted">Se aplicará a todos los leads que no tengan provincia especificada</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6><i class="bi bi-info-circle me-2"></i>Estadísticas</h6>
+                                            <div id="importStats" class="alert alert-light">
+                                                <!-- Stats dinámicas -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="text-end mt-3">
+                                        <button class="btn btn-secondary me-2" id="cancelImportBtn">
+                                            <i class="bi bi-x-circle me-1"></i>Cancelar
+                                        </button>
+                                        <button class="btn btn-success" id="confirmImportBtn" disabled>
+                                            <i class="bi bi-check2-circle me-1"></i>Importar Leads
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div id="importResults" style="display: none;">
+                                    <!-- Resultados del import -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="bi bi-question-circle me-2"></i>Formato CSV Esperado</h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="small text-muted">El archivo CSV debe contener las siguientes columnas (el orden puede variar):</p>
+                                <ul class="small text-muted">
+                                    <li><strong>Nombre del Establecimiento</strong> - Requerido</li>
+                                    <li><strong>Persona de Contacto</strong> - Requerido</li>
+                                    <li><strong>Teléfono</strong> - Requerido</li>
+                                    <li><strong>Dirección</strong> - Opcional</li>
+                                    <li><strong>Sitio Web</strong> - Requerido</li>
+                                    <li><strong>Tipo</strong> - Clínica/Estética (Opcional)</li>
+                                    <li><strong>Valoración</strong> - Número del 1 al 5 (Opcional)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Setup CSV import event listeners
+            setupCSVImportEventListeners();
+        }
+        
+        function setupCSVImportEventListeners() {
+            // File selection button
+            const selectFileBtn = document.getElementById('selectFileBtn');
+            if (selectFileBtn) {
+                selectFileBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    document.getElementById('csvFileInput').click();
+                });
+            }
+            
+            // File input change event
+            const csvFileInput = document.getElementById('csvFileInput');
+            if (csvFileInput) {
+                csvFileInput.addEventListener('change', function(e) {
+                    handleFileSelect(e);
+                });
+            }
+            
+            // Drag and drop events
+            const uploadArea = document.getElementById('uploadArea');
+            if (uploadArea) {
+                uploadArea.addEventListener('dragover', function(e) {
+                    handleDragOver(e);
+                });
+                
+                uploadArea.addEventListener('dragleave', function(e) {
+                    handleDragLeave(e);
+                });
+                
+                uploadArea.addEventListener('drop', function(e) {
+                    handleDrop(e);
+                });
+            }
+            
+            // Process CSV button
+            const processCsvBtn = document.getElementById('processCsvBtn');
+            if (processCsvBtn) {
+                processCsvBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    processCSV();
+                });
+            }
+            
+            // Cancel import button
+            const cancelImportBtn = document.getElementById('cancelImportBtn');
+            if (cancelImportBtn) {
+                cancelImportBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    cancelImport();
+                });
+            }
+            
+            // Confirm import button
+            const confirmImportBtn = document.getElementById('confirmImportBtn');
+            if (confirmImportBtn) {
+                confirmImportBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    confirmImport();
+                });
+            }
+            
+            // View leads button
+            const viewLeadsBtn = document.getElementById('viewLeadsBtn');
+            if (viewLeadsBtn) {
+                viewLeadsBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    loadLeadsManagement();
+                });
+            }
+            
+            // Import more button
+            const importMoreBtn = document.getElementById('importMoreBtn');
+            if (importMoreBtn) {
+                importMoreBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    resetImportForm();
+                });
+            }
+            
+            // Column mapping event delegation
+            dashboardContainer.addEventListener('change', function(e) {
+                if (e.target.dataset.field) {
+                    const field = e.target.dataset.field;
+                    const value = e.target.value;
+                    updateColumnMapping(field, value);
+                } else if (e.target.id === 'defaultProvince') {
+                    // Revalidar cuando cambie la provincia
+                    validateMapping();
+                }
+            });
+        }
+        
+        // CSV Import Functions
+        let currentFile = null;
+        let csvData = [];
+        let columnMapping = {};
+        let currentPreviewPage = 1;
+        let previewPagination = null;
+        
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const uploadArea = document.getElementById('uploadArea');
+            uploadArea.classList.add('drag-over');
+        }
+        
+        function handleDragLeave(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const uploadArea = document.getElementById('uploadArea');
+            uploadArea.classList.remove('drag-over');
+        }
+        
+        function handleDrop(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const uploadArea = document.getElementById('uploadArea');
+            uploadArea.classList.remove('drag-over');
+            
+            const files = event.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+        
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+        
+        function handleFile(file) {
+            // Validar tipo de archivo
+            const validTypes = ['.csv', '.xlsx', '.xls'];
+            const fileName = file.name.toLowerCase();
+            const isValidType = validTypes.some(type => fileName.endsWith(type));
+            
+            if (!isValidType) {
+                showError('Tipo de archivo no válido. Solo se permiten archivos CSV y Excel.');
+                return;
+            }
+            
+            // Validar tamaño (máximo 10MB)
+            if (file.size > 10 * 1024 * 1024) {
+                showError('Archivo demasiado grande. El tamaño máximo es 10MB.');
+                return;
+            }
+            
+            currentFile = file;
+            
+            // Mostrar información del archivo
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatFileSize(file.size);
+            document.getElementById('fileInfo').style.display = 'block';
+            
+            console.log('Archivo seleccionado:', file.name, formatFileSize(file.size));
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        async function processCSV() {
+            if (!currentFile) return;
+            
+            // Mostrar estado de procesamiento
+            document.getElementById('processingStatus').style.display = 'block';
+            document.getElementById('fileInfo').style.display = 'none';
+            
+            try {
+                const formData = new FormData();
+                formData.append('csvFile', currentFile);
+                
+                const response = await fetch('/api/import/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    csvData = result.data.rows;
+                    displayCSVPreview(result.data);
+                } else {
+                    showError('Error procesando archivo: ' + result.message);
+                    resetImportForm();
+                }
+            } catch (error) {
+                console.error('Error processing CSV:', error);
+                showError('Error de conexión al procesar archivo');
+                resetImportForm();
+            }
+        }
+        
+        function displayCSVPreview(data) {
+            const { headers, rows, stats, pagination } = data;
+            
+            // Guardar información de paginación
+            previewPagination = pagination;
+            
+            // Ocultar procesamiento
+            document.getElementById('processingStatus').style.display = 'none';
+            
+            // Actualizar información de paginación
+            updatePreviewInfo();
+            
+            // Crear tabla de vista previa
+            const previewTable = document.getElementById('previewTable');
+            let tableHTML = '<thead><tr>';
+            headers.forEach(header => {
+                tableHTML += `<th>${header}</th>`;
+            });
+            tableHTML += '</tr></thead><tbody>';
+            
+            // Mostrar las filas de la página actual
+            rows.forEach(row => {
+                tableHTML += '<tr>';
+                headers.forEach((header, index) => {
+                    tableHTML += `<td>${row[index] || ''}</td>`;
+                });
+                tableHTML += '</tr>';
+            });
+            tableHTML += '</tbody>';
+            previewTable.innerHTML = tableHTML;
+            
+            // Crear mapeo de columnas (solo una vez)
+            if (currentPreviewPage === 1) {
+                createColumnMapping(headers);
+                displayImportStats(stats);
+            }
+            
+            // Mostrar preview
+            document.getElementById('csvPreview').style.display = 'block';
+            
+            console.log('CSV procesado página:', currentPreviewPage, stats);
+        }
+        
+        function updatePreviewInfo() {
+            if (!previewPagination) return;
+            
+            const { currentPage, totalPages, totalRows, pageSize } = previewPagination;
+            const startRow = (currentPage - 1) * pageSize + 1;
+            const endRow = Math.min(currentPage * pageSize, totalRows);
+            
+            document.getElementById('previewInfo').textContent = 
+                `Mostrando filas ${startRow}-${endRow} de ${totalRows.toLocaleString()} total`;
+            
+            // Actualizar botones
+            const prevBtn = document.getElementById('prevPageBtn');
+            const nextBtn = document.getElementById('nextPageBtn');
+            
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage === totalPages;
+        }
+        
+        async function loadPreviewPage(page) {
+            if (!currentFile || !previewPagination) return;
+            
+            // Mostrar indicador de carga
+            document.getElementById('previewLoading').style.display = 'block';
+            document.getElementById('previewTable').style.opacity = '0.5';
+            
+            try {
+                const formData = new FormData();
+                formData.append('csvFile', currentFile);
+                
+                const response = await fetch(`/api/import/upload?page=${page}&limit=5`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentPreviewPage = page;
+                    displayCSVPreview(result.data);
+                } else {
+                    showError('Error cargando página: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error loading preview page:', error);
+                showError('Error de conexión al cargar página');
+            } finally {
+                // Ocultar indicador de carga
+                document.getElementById('previewLoading').style.display = 'none';
+                document.getElementById('previewTable').style.opacity = '1';
+            }
+        }
+        
+        function createColumnMapping(csvHeaders) {
+            const mappingContainer = document.getElementById('columnMapping');
+            
+            // Campos esperados en el sistema - Adaptado para Google Maps
+            const expectedFields = [
+                { key: 'name', label: 'Nombre del Establecimiento', required: true },
+                { key: 'type', label: 'Tipo de Establecimiento', required: false },
+                { key: 'rating', label: 'Valoración (1-5)', required: false },
+                { key: 'reviewCount', label: 'Cantidad de Reseñas', required: false },
+                { key: 'phone', label: 'Teléfono', required: false },
+                { key: 'email', label: 'Email', required: false },
+                { key: 'address', label: 'Dirección', required: false },
+                { key: 'schedule', label: 'Horarios', required: false },
+                { key: 'website', label: 'Sitio Web', required: false },
+                { key: 'googleUrl', label: 'URL de Google Maps', required: false },
+                { key: 'contact', label: 'Persona de Contacto', required: false },
+                { key: 'province', label: 'Provincia', required: false },
+                { key: 'city', label: 'Ciudad', required: false }
+            ];
+            
+            let mappingHTML = '';
+            expectedFields.forEach(field => {
+                mappingHTML += `
+                    <div class="mb-2">
+                        <label class="form-label small">
+                            ${field.label} ${field.required ? '<span class="text-danger">*</span>' : ''}
+                        </label>
+                        <select class="form-select form-select-sm" data-field="${field.key}" id="mapping_${field.key}">
+                            <option value="">-- Seleccionar columna --</option>
+                            ${csvHeaders.map((header, index) => 
+                                `<option value="${index}" ${
+                                    // Auto-mapeo inteligente basado en posición y contenido
+                                    (field.key === 'googleUrl' && index === 0) ? 'selected' :
+                                    (field.key === 'name' && index === 1) ? 'selected' :
+                                    (field.key === 'rating' && index === 2) ? 'selected' :
+                                    (field.key === 'reviewCount' && index === 3) ? 'selected' :
+                                    (field.key === 'type' && index === 4) ? 'selected' :
+                                    (field.key === 'address' && index === 6) ? 'selected' :
+                                    (field.key === 'schedule' && index === 8) ? 'selected' :
+                                    (field.key === 'phone' && index === 10) ? 'selected' :
+                                    (field.key === 'website' && index === 11) ? 'selected' :
+                                    // Mapeo alternativo por nombre
+                                    (field.key === 'name' && header.toLowerCase().includes('nombre')) ? 'selected' :
+                                    (field.key === 'contact' && header.toLowerCase().includes('contact')) ? 'selected' :
+                                    (field.key === 'phone' && header.toLowerCase().includes('tel')) ? 'selected' :
+                                    (field.key === 'website' && header.toLowerCase().includes('web')) ? 'selected' :
+                                    (field.key === 'address' && header.toLowerCase().includes('direcci')) ? 'selected' :
+                                    (field.key === 'rating' && header.toLowerCase().includes('valora')) ? 'selected' : ''
+                                }>${header}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                `;
+            });
+            
+            mappingContainer.innerHTML = mappingHTML;
+            
+            // Inicializar mapeo automático
+            expectedFields.forEach(field => {
+                const select = document.getElementById(`mapping_${field.key}`);
+                if (select.value) {
+                    columnMapping[field.key] = select.value;
+                }
+            });
+            
+            validateMapping();
+        }
+        
+        function updateColumnMapping(field, csvColumn) {
+            if (csvColumn) {
+                columnMapping[field] = csvColumn;
+            } else {
+                delete columnMapping[field];
+            }
+            validateMapping();
+        }
+        
+        function validateMapping() {
+            // Solo name es obligatorio + provincia debe estar especificada
+            const requiredFields = ['name'];
+            const mappedRequired = requiredFields.filter(field => columnMapping[field]);
+            
+            // Verificar provincia (requerida por el usuario)
+            const provinceInput = document.getElementById('defaultProvince');
+            const hasProvince = provinceInput && provinceInput.value.trim();
+            
+            const confirmBtn = document.getElementById('confirmImportBtn');
+            if (mappedRequired.length === requiredFields.length && hasProvince) {
+                confirmBtn.disabled = false;
+                confirmBtn.classList.remove('btn-secondary');
+                confirmBtn.classList.add('btn-success');
+            } else {
+                confirmBtn.disabled = true;
+                confirmBtn.classList.remove('btn-success');
+                confirmBtn.classList.add('btn-secondary');
+            }
+        }
+        
+        function displayImportStats(stats) {
+            const statsContainer = document.getElementById('importStats');
+            statsContainer.innerHTML = `
+                <div class="row text-center">
+                    <div class="col-6">
+                        <strong class="text-primary">${stats.totalRows}</strong>
+                        <br><small>Filas totales</small>
+                    </div>
+                    <div class="col-6">
+                        <strong class="text-success">${stats.validRows}</strong>
+                        <br><small>Filas válidas</small>
+                    </div>
+                </div>
+                ${stats.errors && stats.errors.length > 0 ? `
+                    <hr>
+                    <div class="text-warning">
+                        <small><i class="bi bi-exclamation-triangle me-1"></i>
+                        ${stats.errors.length} filas con errores (se omitirán)</small>
+                    </div>
+                ` : ''}
+            `;
+        }
+        
+        async function confirmImport() {
+            if (!currentFile || Object.keys(columnMapping).length === 0) {
+                showError('Debe mapear las columnas requeridas');
+                return;
+            }
+            
+            try {
+                // Mostrar loading
+                const confirmBtn = document.getElementById('confirmImportBtn');
+                const originalText = confirmBtn.innerHTML;
+                confirmBtn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Importando...';
+                confirmBtn.disabled = true;
+                
+                const formData = new FormData();
+                formData.append('csvFile', currentFile);
+                formData.append('columnMapping', JSON.stringify(columnMapping));
+                
+                // Include default province
+                const defaultProvince = document.getElementById('defaultProvince')?.value || 'Buenos Aires';
+                formData.append('defaultProvince', defaultProvince);
+                
+                const response = await fetch('/api/import/leads', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showImportResults(result.data);
+                    showToast('Éxito', `${result.data.imported} leads importados correctamente`, 'success');
+                } else {
+                    showError('Error en la importación: ' + result.message);
+                    confirmBtn.innerHTML = originalText;
+                    confirmBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                console.error('Error importing leads:', error);
+                showError('Error de conexión durante la importación');
+                
+                // Restaurar botón
+                const confirmBtn = document.getElementById('confirmImportBtn');
+                confirmBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Importar Leads';
+                confirmBtn.disabled = false;
+            }
+        }
+        
+        function showImportResults(results) {
+            const resultsContainer = document.getElementById('importResults');
+            
+            resultsContainer.innerHTML = `
+                <div class="alert alert-success">
+                    <h6><i class="bi bi-check-circle me-2"></i>Importación Completada</h6>
+                    <div class="row mt-3">
+                        <div class="col-md-3 col-6 text-center">
+                            <strong class="text-success display-6">${results.imported}</strong>
+                            <br><small>Importados</small>
+                        </div>
+                        <div class="col-md-3 col-6 text-center">
+                            <strong class="text-warning display-6">${results.skipped || 0}</strong>
+                            <br><small>Omitidos</small>
+                        </div>
+                        <div class="col-md-3 col-6 text-center">
+                            <strong class="text-info display-6">${results.duplicates || 0}</strong>
+                            <br><small>Duplicados</small>
+                        </div>
+                        <div class="col-md-3 col-6 text-center">
+                            <strong class="text-danger display-6">${results.errors || 0}</strong>
+                            <br><small>Errores</small>
+                        </div>
+                    </div>
+                    
+                    ${results.errorDetails && results.errorDetails.length > 0 ? `
+                        <details class="mt-3">
+                            <summary class="text-warning">Ver detalles de errores</summary>
+                            <ul class="mt-2 small">
+                                ${results.errorDetails.map(error => `<li>${error}</li>`).join('')}
+                            </ul>
+                        </details>
+                    ` : ''}
+                    
+                    <div class="mt-3">
+                        <button class="btn btn-primary me-2" id="viewLeadsBtn">
+                            <i class="bi bi-list me-1"></i>Ver Leads
+                        </button>
+                        <button class="btn btn-secondary" id="importMoreBtn">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>Importar Más
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Ocultar preview y mostrar resultados
+            document.getElementById('csvPreview').style.display = 'none';
+            resultsContainer.style.display = 'block';
+        }
+        
+        function cancelImport() {
+            resetImportForm();
+            showToast('Cancelado', 'Importación cancelada', 'info');
+        }
+        
+        function resetImportForm() {
+            // Limpiar variables
+            currentFile = null;
+            csvData = [];
+            columnMapping = {};
+            currentPreviewPage = 1;
+            previewPagination = null;
+            
+            // Ocultar elementos
+            document.getElementById('fileInfo').style.display = 'none';
+            document.getElementById('processingStatus').style.display = 'none';
+            document.getElementById('csvPreview').style.display = 'none';
+            document.getElementById('importResults').style.display = 'none';
+            
+            // Limpiar input
+            document.getElementById('csvFileInput').value = '';
+            
+            // Restaurar área de upload
+            const uploadArea = document.getElementById('uploadArea');
+            uploadArea.classList.remove('drag-over');
+        }
+        
+        function loadMyStats() {
+            if (!currentUser) {
+                showError('Usuario no autenticado');
+                return;
+            }
+            if (currentUser.role !== 'seller' && currentUser.role !== 'admin') {
+                showError('Acceso denegado: Función no disponible para tu rol');
+                return;
+            }
+            
+            setActiveNavLink('myStatsLink');
+            dashboardContainer.innerHTML = `
+                <div class="row">
+                    <div class="col-12">
+                        <h2><i class="bi bi-graph-up me-2"></i>Mis Estadísticas</h2>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Dashboard de estadísticas de vendedor en desarrollo.
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Lead action functions (placeholders)
+        function editLead(leadId) {
+            alert('Editar lead: ' + leadId + ' - Función en desarrollo');
+        }
+        
+        function assignLead(leadId) {
+            alert('Asignar lead: ' + leadId + ' - Función en desarrollo');
+        }
+        
+        function contactLead(leadId) {
+            alert('Contactar lead: ' + leadId + ' - Función en desarrollo');
+        }
+        
+        function updateLeadStatus(leadId, newStatus) {
+            alert(`Actualizar lead ${leadId} a estado ${newStatus} - Función en desarrollo`);
+        }
+        
+        console.log('📝 INLINE script loaded successfully');
+        
+        // Debug: Check if modules are available
+        setTimeout(() => {
+            console.log('🧪 Module availability check:');
+            console.log('- window.authManager:', typeof window.authManager);
+            console.log('- window.apiClient:', typeof window.apiClient);  
+            console.log('- window.dashboardManager:', typeof window.dashboardManager);
+            console.log('- window.crmApp:', typeof window.crmApp);
+        }, 2000);
+    </script>
+
+    <!-- External JavaScript modules -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/leads.js"></script>
+    <script src="js/import.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
