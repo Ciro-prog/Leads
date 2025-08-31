@@ -12,6 +12,15 @@ class CRMApp {
     this.userDropdown = document.getElementById('userDropdown');
     this.userName = document.getElementById('userName');
     
+    // Navigation State Manager
+    this.navigationState = {
+      isLoading: false,
+      currentTab: 'dashboard',
+      loadedTabs: new Set(['dashboard']),
+      tabCache: new Map(),
+      eventListeners: new Map()
+    };
+    
     // Initialize application
     this.init();
   }
@@ -233,37 +242,48 @@ class CRMApp {
   }
 
   setupNavigationEvents() {
+    // Clean previous event listeners to prevent duplicates
+    this.cleanupNavigationEvents();
+    
     // Admin navigation
     const dashboardLink = document.getElementById('dashboardLink');
     if (dashboardLink) {
-      dashboardLink.addEventListener('click', (e) => {
+      const handler = (e) => {
         e.preventDefault();
-        this.loadDashboardContent();
-      });
+        this.navigateToTab('dashboard', () => this.loadDashboardContent());
+      };
+      dashboardLink.addEventListener('click', handler);
+      this.navigationState.eventListeners.set('dashboardLink', { element: dashboardLink, handler });
     }
 
     const leadsLink = document.getElementById('leadsLink');
     if (leadsLink) {
-      leadsLink.addEventListener('click', (e) => {
+      const handler = (e) => {
         e.preventDefault();
-        this.loadLeadsContent();
-      });
+        this.navigateToTab('leads', () => this.loadLeadsContentOptimized());
+      };
+      leadsLink.addEventListener('click', handler);
+      this.navigationState.eventListeners.set('leadsLink', { element: leadsLink, handler });
     }
 
     const usersLink = document.getElementById('usersLink');
     if (usersLink) {
-      usersLink.addEventListener('click', (e) => {
+      const handler = (e) => {
         e.preventDefault();
-        this.loadSellersContent();
-      });
+        this.navigateToTab('vendedores', () => this.loadSellersContent());
+      };
+      usersLink.addEventListener('click', handler);
+      this.navigationState.eventListeners.set('usersLink', { element: usersLink, handler });
     }
 
     const importLink = document.getElementById('importLink');
     if (importLink) {
-      importLink.addEventListener('click', (e) => {
+      const handler = (e) => {
         e.preventDefault();
-        this.loadImportContent();
-      });
+        this.navigateToTab('importar', () => this.loadImportContent());
+      };
+      importLink.addEventListener('click', handler);
+      this.navigationState.eventListeners.set('importLink', { element: importLink, handler });
     }
 
     // Seller navigation  
@@ -273,6 +293,97 @@ class CRMApp {
         e.preventDefault();
         this.loadMyLeads();
       });
+    }
+  }
+
+  // Navigation State Manager Methods
+  cleanupNavigationEvents() {
+    this.navigationState.eventListeners.forEach(({ element, handler }) => {
+      if (element) {
+        element.removeEventListener('click', handler);
+      }
+    });
+    this.navigationState.eventListeners.clear();
+  }
+
+  async navigateToTab(tabName, loadFunction) {
+    // Prevent multiple navigation during loading
+    if (this.navigationState.isLoading) {
+      console.log(`⚠️ Navigation blocked - already loading ${this.navigationState.currentTab}`);
+      return;
+    }
+
+    // Skip if already on this tab
+    if (this.navigationState.currentTab === tabName) {
+      console.log(`ℹ️ Already on ${tabName} tab`);
+      return;
+    }
+
+    console.log(`🔄 Navigating to ${tabName}...`);
+    this.navigationState.isLoading = true;
+    this.navigationState.currentTab = tabName;
+
+    try {
+      // Update navigation visual state
+      this.updateNavigationState(tabName);
+      
+      // Show loading indicator
+      this.showTabLoading();
+      
+      // Load content
+      await loadFunction();
+      
+      this.navigationState.loadedTabs.add(tabName);
+      console.log(`✅ Successfully navigated to ${tabName}`);
+      
+    } catch (error) {
+      console.error(`❌ Navigation to ${tabName} failed:`, error);
+      this.showNavigationError(tabName, error);
+    } finally {
+      this.navigationState.isLoading = false;
+    }
+  }
+
+  updateNavigationState(activeTab) {
+    // Update active nav link
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.classList.remove('active');
+    });
+    
+    const activeLink = document.getElementById(`${activeTab === 'vendedores' ? 'users' : activeTab === 'importar' ? 'import' : activeTab}Link`);
+    if (activeLink) {
+      activeLink.classList.add('active');
+    }
+  }
+
+  showTabLoading() {
+    const mainContent = document.getElementById('mainContent');
+    if (mainContent) {
+      mainContent.innerHTML = `
+        <div class="d-flex justify-content-center align-items-center" style="min-height: 300px;">
+          <div class="text-center">
+            <div class="spinner-border text-primary mb-3" role="status">
+              <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="text-muted">Cargando contenido...</p>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  showNavigationError(tabName, error) {
+    const mainContent = document.getElementById('mainContent');
+    if (mainContent) {
+      mainContent.innerHTML = `
+        <div class="alert alert-danger">
+          <h4>Error de Navegación</h4>
+          <p>No se pudo cargar el contenido de ${tabName}: ${error.message}</p>
+          <button class="btn btn-primary" onclick="window.crmApp.navigateToTab('${tabName}', () => window.crmApp.load${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Content())">
+            Reintentar
+          </button>
+        </div>
+      `;
     }
   }
 
@@ -468,27 +579,68 @@ class CRMApp {
     console.log('📋 Loading my leads...');
   }
 
-  async loadLeadsContent() {
-    console.log('📋 Loading leads content...');
+  async loadLeadsContentOptimized() {
+    console.log('📋 Loading optimized leads content...');
     const user = authManager.getCurrentUser();
     if (!user) return;
 
-    const leadsHTML = `
-      <div class="row">
-        <div class="col-12">
-          <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-              <h2><i class="bi bi-person-lines-fill me-2"></i>Gestión de Leads</h2>
-              <p class="text-muted mb-0">Administrar y gestionar todos los leads del sistema</p>
+    const mainContent = document.getElementById('mainContent');
+    if (!mainContent) return;
+
+    try {
+      // Show initial structure immediately
+      const leadsHTML = `
+        <div class="row">
+          <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <div>
+                <h2><i class="bi bi-person-lines-fill me-2"></i>Gestión de Leads</h2>
+                <p class="text-muted mb-0">Administrar y gestionar todos los leads del sistema</p>
+              </div>
+              <button class="btn btn-primary" id="addLeadBtn">
+                <i class="bi bi-plus me-1"></i>Nuevo Lead
+              </button>
             </div>
-            <button class="btn btn-primary" id="addLeadBtn">
-              <i class="bi bi-plus me-1"></i>Nuevo Lead
-            </button>
           </div>
         </div>
-      </div>
 
-      <!-- Filters Section -->
+        <!-- Quick Stats (Load immediately) -->
+        <div class="row mb-4" id="leadsStatsContainer">
+          <div class="col-md-3">
+            <div class="card stat-card-primary">
+              <div class="card-body text-center">
+                <div class="spinner-border spinner-border-sm mb-2" role="status"></div>
+                <p class="mb-0">Total Leads</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card stat-card-warning">
+              <div class="card-body text-center">
+                <div class="spinner-border spinner-border-sm mb-2" role="status"></div>
+                <p class="mb-0">Sin Asignar</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card stat-card-success">
+              <div class="card-body text-center">
+                <div class="spinner-border spinner-border-sm mb-2" role="status"></div>
+                <p class="mb-0">Contactados</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card stat-card-info">
+              <div class="card-body text-center">
+                <div class="spinner-border spinner-border-sm mb-2" role="status"></div>
+                <p class="mb-0">Convertidos</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters Section -->
       <div class="row mb-4">
         <div class="col-12">
           <div class="card">
@@ -669,13 +821,157 @@ class CRMApp {
             </div>
           </div>
         </div>
-      </div>
-    `;
+          <!-- Data Container with Skeleton Loading -->
+          <div class="row">
+            <div class="col-12">
+              <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <div>
+                    <h5><i class="bi bi-list-ul me-2"></i>Lista de Leads</h5>
+                    <small class="text-muted" id="leadsCount">Cargando...</small>
+                  </div>
+                  <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary" id="bulkAssignBtn" disabled>
+                      <i class="bi bi-person-plus me-1"></i>Asignar Seleccionados
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" id="exportBtn">
+                      <i class="bi bi-download me-1"></i>Exportar
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body p-0">
+                  <div id="leadsTableContainer">
+                    <!-- Skeleton loading -->
+                    <div class="table-responsive">
+                      <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                          <tr>
+                            <th width="50"><input type="checkbox" id="selectAll" disabled></th>
+                            <th>Establecimiento</th>
+                            <th>Contacto</th>
+                            <th>Teléfono</th>
+                            <th>Email</th>
+                            <th>Estado</th>
+                            <th>Vendedor</th>
+                            <th>Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody id="leadsTableBody">
+                          ${this.generateSkeletonRows(20)}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+                <div class="card-footer">
+                  <nav aria-label="Leads pagination">
+                    <ul class="pagination pagination-sm justify-content-center mb-0" id="leadsPagination">
+                      <li class="page-item disabled">
+                        <span class="page-link">Cargando paginación...</span>
+                      </li>
+                    </ul>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
 
-    this.dashboardContainer.innerHTML = leadsHTML;
+      // Set HTML immediately for instant visual feedback  
+      mainContent.innerHTML = leadsHTML;
+      
+      // Progressive data loading in background
+      await this.loadLeadsDataProgressively();
+      
+    } catch (error) {
+      console.error('❌ Error loading leads:', error);
+      throw error;
+    }
+  }
+
+  generateSkeletonRows(count = 20) {
+    return Array(count).fill(0).map(() => `
+      <tr class="skeleton-row">
+        <td><div class="skeleton-checkbox"></div></td>
+        <td><div class="skeleton-text skeleton-text-lg"></div></td>
+        <td><div class="skeleton-text skeleton-text-md"></div></td>
+        <td><div class="skeleton-text skeleton-text-sm"></div></td>
+        <td><div class="skeleton-text skeleton-text-md"></div></td>
+        <td><div class="skeleton-badge"></div></td>
+        <td><div class="skeleton-text skeleton-text-sm"></div></td>
+        <td><div class="skeleton-actions"></div></td>
+      </tr>
+    `).join('');
+  }
+
+  async loadLeadsDataProgressively() {
+    console.log('🚀 Starting progressive data loading...');
     
-    // Initialize leads system
-    await this.initializeLeadsSystem();
+    try {
+      // Phase 1: Load stats immediately (fast)
+      const statsPromise = this.loadLeadsStats();
+      
+      // Phase 2: Load first page of leads (priority)
+      const leadsPromise = this.loadLeadsData(1, 50); // First 50 leads as requested
+      
+      // Phase 3: Load supporting data in background
+      const supportPromise = Promise.all([
+        this.loadSellers(),
+        this.loadProvinces()
+      ]);
+
+      // Execute phase 1 & 2 in parallel (critical path)
+      await Promise.all([statsPromise, leadsPromise]);
+      
+      // Setup event listeners after initial data loads
+      this.setupLeadsEventListeners();
+      
+      // Phase 3 loads in background (non-blocking)
+      supportPromise.then(() => {
+        console.log('✅ Background data loaded successfully');
+        
+        // Phase 4: Prefetch next batch in background for smooth pagination
+        this.prefetchNextBatch().catch(error => {
+          console.error('⚠️ Background prefetch error:', error);
+        });
+      }).catch(error => {
+        console.error('⚠️ Background loading error:', error);
+      });
+      
+    } catch (error) {
+      console.error('❌ Progressive loading failed:', error);
+      this.showLeadsError(error);
+    }
+  }
+
+  async prefetchNextBatch() {
+    console.log('🔄 Prefetching next batch for smooth pagination...');
+    
+    try {
+      // Prefetch page 2 with same limit (50 records)
+      const params = new URLSearchParams({
+        page: 2,
+        limit: 50,
+        ...this.currentFilters
+      });
+
+      const response = await apiClient.get(`/leads?${params}`);
+      if (response.success) {
+        // Cache the results for instant loading when user clicks page 2
+        this.cachedPages = this.cachedPages || new Map();
+        this.cachedPages.set(2, {
+          leads: response.data.leads,
+          pagination: response.data.pagination,
+          timestamp: Date.now()
+        });
+        
+        console.log('✅ Next batch prefetched and cached');
+      }
+    } catch (error) {
+      // Prefetch failures are not critical - just log them
+      console.warn('⚠️ Prefetch failed, pagination will load normally:', error.message);
+    }
   }
 
   async initializeLeadsSystem() {
@@ -855,11 +1151,28 @@ class CRMApp {
     leadsStats.innerHTML = statsHTML;
   }
 
-  async loadLeadsData(page = 1) {
+  async loadLeadsData(page = 1, limit = 25) {
     try {
+      // Check cache first for instant loading
+      if (this.cachedPages && this.cachedPages.has(page)) {
+        const cached = this.cachedPages.get(page);
+        // Use cache if less than 5 minutes old
+        const cacheAge = Date.now() - cached.timestamp;
+        if (cacheAge < 5 * 60 * 1000) {
+          console.log(`⚡ Loading page ${page} from cache (instant)`);
+          this.renderLeadsTable(cached.leads);
+          this.renderPagination(cached.pagination);
+          this.updateLeadsCount(cached.pagination.total);
+          return;
+        } else {
+          // Remove expired cache
+          this.cachedPages.delete(page);
+        }
+      }
+
       const params = new URLSearchParams({
         page,
-        limit: 20,
+        limit,
         ...this.currentFilters
       });
 
@@ -868,6 +1181,21 @@ class CRMApp {
         this.renderLeadsTable(response.data.leads);
         this.renderPagination(response.data.pagination);
         this.updateLeadsCount(response.data.pagination.total);
+        
+        // Cache this page for future use
+        this.cachedPages = this.cachedPages || new Map();
+        this.cachedPages.set(page, {
+          leads: response.data.leads,
+          pagination: response.data.pagination,
+          timestamp: Date.now()
+        });
+        
+        // Prefetch next page in background if this is page 1
+        if (page === 1 && response.data.pagination.totalPages > 1) {
+          setTimeout(() => {
+            this.prefetchNextBatch().catch(() => {}); // Silent fail
+          }, 1000);
+        }
       }
     } catch (error) {
       console.error('Error loading leads:', error);
