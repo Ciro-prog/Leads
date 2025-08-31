@@ -33,10 +33,11 @@ app.use(helmet({
   }
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // máximo 100 requests por ventana
+// Adaptive Rate limiting - More flexible for different endpoints
+const createRateLimit = (windowMs, max, skipSuccessful = false) => rateLimit({
+  windowMs,
+  max,
+  skipSuccessfulRequests: skipSuccessful,
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
@@ -45,7 +46,31 @@ const limiter = rateLimit({
   legacyHeaders: false
 });
 
-app.use('/api/', limiter);
+// General API rate limiting - More generous
+const generalLimiter = createRateLimit(
+  1 * 60 * 1000, // 1 minute window
+  200 // 200 requests per minute (much more generous)
+);
+
+// Stats endpoints - Even more generous since they're frequently called
+const statsLimiter = createRateLimit(
+  1 * 60 * 1000, // 1 minute window  
+  300, // 300 requests per minute
+  true // Skip successful requests to allow more throughput
+);
+
+// Data endpoints - Moderate limiting
+const dataLimiter = createRateLimit(
+  1 * 60 * 1000, // 1 minute window
+  150 // 150 requests per minute
+);
+
+// Apply different limits to different endpoints
+app.use('/api/leads/stats', statsLimiter);
+app.use('/api/users/stats', statsLimiter);
+app.use('/api/leads', dataLimiter);
+app.use('/api/users', dataLimiter);
+app.use('/api/', generalLimiter);
 
 // Rate limiting más estricto para auth
 const authLimiter = rateLimit({

@@ -402,8 +402,135 @@ router.get('/history', auth, adminAuth, async (req, res) => {
   }
 });
 
+// @route   GET /api/import/status/:id
+// @desc    Get import status
+// @access  Private/Admin
+router.get('/status/:id', auth, adminAuth, async (req, res) => {
+  try {
+    const importRecord = await ImportHistory.findById(req.params.id)
+      .populate('uploadedBy', 'name username')
+      .select('status stats errorMessage uploadedAt completedAt');
+
+    if (!importRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Import record not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: { 
+        status: importRecord.status,
+        stats: importRecord.stats,
+        errorMessage: importRecord.errorMessage,
+        uploadedAt: importRecord.uploadedAt,
+        completedAt: importRecord.completedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Get import status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   GET /api/import/details/:id
+// @desc    Get import full details
+// @access  Private/Admin
+router.get('/details/:id', auth, adminAuth, async (req, res) => {
+  try {
+    const importRecord = await ImportHistory.findById(req.params.id)
+      .populate('uploadedBy', 'name username');
+
+    if (!importRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Import record not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: { import: importRecord }
+    });
+
+  } catch (error) {
+    console.error('Get import details error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   GET /api/import/:id/failed-records
+// @desc    Get failed records from import
+// @access  Private/Admin
+router.get('/:id/failed-records', auth, adminAuth, async (req, res) => {
+  try {
+    const importRecord = await ImportHistory.findById(req.params.id);
+
+    if (!importRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Import record not found'
+      });
+    }
+
+    // Extract failed records from logs
+    const failedRecords = importRecord.logs
+      .filter(log => log.level === 'error')
+      .map(log => ({
+        message: log.message,
+        timestamp: log.timestamp
+      }));
+
+    res.json({
+      success: true,
+      data: { 
+        failedRecords,
+        totalFailed: failedRecords.length,
+        importId: importRecord._id
+      }
+    });
+
+  } catch (error) {
+    console.error('Get failed records error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   DELETE /api/import/history
+// @desc    Clear import history
+// @access  Private/Admin
+router.delete('/history', auth, adminAuth, async (req, res) => {
+  try {
+    const result = await ImportHistory.deleteMany({});
+
+    res.json({
+      success: true,
+      message: `${result.deletedCount} import records deleted`,
+      data: { deletedCount: result.deletedCount }
+    });
+
+  } catch (error) {
+    console.error('Clear import history error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 // @route   GET /api/import/:id
-// @desc    Get import details
+// @desc    Get import details (legacy support)
 // @access  Private/Admin
 router.get('/:id', auth, adminAuth, async (req, res) => {
   try {

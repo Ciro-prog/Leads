@@ -444,6 +444,60 @@ router.post('/assign', auth, adminAuth, async (req, res) => {
   }
 });
 
+// @route   PUT /api/leads/:id/assign
+// @desc    Assign single lead to seller
+// @access  Private/Admin
+router.put('/:id/assign', auth, adminAuth, async (req, res) => {
+  try {
+    const { sellerId } = req.body;
+    const leadId = req.params.id;
+
+    const lead = await Lead.findById(leadId);
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+
+    // Verify seller exists if provided
+    if (sellerId) {
+      const seller = await User.findById(sellerId);
+      if (!seller || seller.role !== 'seller') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid seller ID'
+        });
+      }
+    }
+
+    // Update lead assignment
+    lead.assignedTo = sellerId || null;
+    lead.assignedAt = sellerId ? new Date() : null;
+    await lead.save();
+
+    // Update seller stats if assigned
+    if (sellerId) {
+      await User.findByIdAndUpdate(sellerId, {
+        $inc: { totalLeads: 1 }
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Lead assigned successfully',
+      data: { lead }
+    });
+
+  } catch (error) {
+    console.error('Assign lead error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 // @route   DELETE /api/leads/:id
 // @desc    Delete lead
 // @access  Private/Admin
